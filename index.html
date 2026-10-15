@@ -200,17 +200,17 @@ button, input { font: inherit; color: inherit; }
   overflow: hidden;
 }
 .die {
-  width: 86%;
+  width: 78%;
   aspect-ratio: 1 / 0.87;
   clip-path: polygon(0 0, 100% 0, 50% 100%);
   background: var(--die);
   display: flex;
   justify-content: center;
   padding-top: 9%;
-  transform: translateY(-7%);
+  transform: translateY(16.667%);
   transition: opacity 260ms ease, transform 260ms ease, filter 260ms ease;
 }
-.die.sunk { opacity: 0; transform: translateY(4%) scale(0.82) rotate(-8deg); filter: blur(3px); }
+.die.sunk { opacity: 0; transform: translateY(26%) scale(0.82) rotate(-8deg); filter: blur(3px); }
 .die.rising { transition-duration: 1100ms; transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1); }
 .die-text {
   width: 54%;
@@ -243,7 +243,7 @@ button, input { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .ball.shaking { animation: none; }
   .die, .die.rising { transition: opacity 200ms linear; }
-  .die.sunk { transform: translateY(-7%); filter: none; }
+  .die.sunk { transform: translateY(16.667%); filter: none; }
   .btn { transition: none; }
 }
 .sr-only {
