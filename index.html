@@ -1,0 +1,805 @@
+<title>Magic 8 Ball</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a stage (question, ball, recent shakes) above the die itself, its faces sorted into yes / maybe / no. */
+:root {
+  --bg: #e8ebf4;
+  --surface: #f6f7fb;
+  --fg: #151a2e;
+  --muted: #565e7a;
+  --line: #cdd2e3;
+  --accent: #2a3fd0;
+  --accent-fg: #ffffff;
+  --yes: #1d7349;
+  --maybe: #85640c;
+  --no: #ad3636;
+  --shadow: rgba(21, 26, 46, 0.45);
+  --ball-hi: #5d6070;
+  --ball-mid: #16171d;
+  --ball-lo: #000000;
+  --ball-rim: rgba(0, 0, 0, 0);
+  --ball-shade: rgba(0, 0, 0, 0.65);
+  --ball-gloss: rgba(255, 255, 255, 0.22);
+  --window-hi: #18225e;
+  --window: #070b26;
+  --window-ring: #1c1d25;
+  --die: #2236c4;
+  --die-fg: #f3f5ff;
+  --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0d19;
+    --surface: #141729;
+    --fg: #e7e9f6;
+    --muted: #9ba1bf;
+    --line: #2a2f4a;
+    --accent: #8390ff;
+    --accent-fg: #0b0d19;
+    --yes: #5fc392;
+    --maybe: #e2bb52;
+    --no: #f27f7f;
+    --shadow: rgba(0, 0, 0, 0.8);
+    --ball-rim: rgba(150, 160, 210, 0.22);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0d19;
+  --surface: #141729;
+  --fg: #e7e9f6;
+  --muted: #9ba1bf;
+  --line: #2a2f4a;
+  --accent: #8390ff;
+  --accent-fg: #0b0d19;
+  --yes: #5fc392;
+  --maybe: #e2bb52;
+  --no: #f27f7f;
+  --shadow: rgba(0, 0, 0, 0.8);
+  --ball-rim: rgba(150, 160, 210, 0.22);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 48px;
+}
+h1, h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+  margin: 0;
+  text-wrap: balance;
+}
+h1 { font-size: clamp(3rem, 9vw, 5.25rem); }
+h2 { font-size: clamp(1.9rem, 5vw, 2.6rem); }
+p { margin: 0; }
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+/* ---------- Stage ---------- */
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+.intro { display: grid; gap: 24px; align-content: start; min-width: 0; }
+.lede { color: var(--muted); font-size: 1.125rem; max-width: 34ch; }
+.ask { display: grid; gap: 8px; }
+.ask-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.ask-row input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 1.0625rem;
+}
+.ask-row input:focus-visible { outline: none; border-color: var(--accent); }
+.btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 14px 22px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: default; filter: none; transform: none; }
+.hint { min-height: 1.5em; color: var(--muted); font-size: 0.9375rem; }
+.hint.warn { color: var(--no); }
+
+.history { display: grid; gap: 10px; }
+.history ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.history li {
+  display: grid;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+  min-width: 0;
+}
+.history .q { color: var(--muted); font-size: 0.9375rem; overflow-wrap: anywhere; }
+.history .a { font-weight: 700; overflow-wrap: anywhere; }
+.history .empty { color: var(--muted); font-size: 0.9375rem; }
+
+/* ---------- The ball ---------- */
+.ball-wrap { display: grid; place-items: center; min-width: 0; }
+.ball {
+  position: relative;
+  width: min(78vw, 360px);
+  max-width: 100%;
+  aspect-ratio: 1;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: radial-gradient(circle at 32% 26%, var(--ball-hi) 0%, var(--ball-mid) 40%, var(--ball-lo) 74%);
+  box-shadow:
+    0 30px 46px -22px var(--shadow),
+    inset -14px -18px 36px var(--ball-shade),
+    0 0 0 1px var(--ball-rim);
+  display: grid;
+  place-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.ball::before {
+  content: "";
+  position: absolute;
+  top: 9%;
+  left: 20%;
+  width: 30%;
+  height: 16%;
+  border-radius: 50%;
+  background: var(--ball-gloss);
+  filter: blur(6px);
+  transform: rotate(-28deg);
+  pointer-events: none;
+}
+.ball:focus-visible { outline-offset: 8px; }
+.window {
+  width: 48%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, var(--window-hi) 0%, var(--window) 72%);
+  box-shadow: 0 0 0 7px var(--window-ring), inset 0 8px 20px var(--ball-shade);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.die {
+  width: 86%;
+  aspect-ratio: 1 / 0.87;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  background: var(--die);
+  display: flex;
+  justify-content: center;
+  padding-top: 9%;
+  transform: translateY(-7%);
+  transition: opacity 260ms ease, transform 260ms ease, filter 260ms ease;
+}
+.die.sunk { opacity: 0; transform: translateY(4%) scale(0.82) rotate(-8deg); filter: blur(3px); }
+.die.rising { transition-duration: 1100ms; transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1); }
+.die-text {
+  width: 54%;
+  height: 46%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--die-fg);
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1.02;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+.die.idle .die-text { opacity: 0.75; }
+.ball.shaking { animation: shake 720ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes shake {
+  0%   { transform: translate(0, 0) rotate(0); }
+  12%  { transform: translate(-14px, 6px) rotate(-9deg); }
+  26%  { transform: translate(16px, -8px) rotate(8deg); }
+  40%  { transform: translate(-12px, 4px) rotate(-6deg); }
+  54%  { transform: translate(10px, -4px) rotate(5deg); }
+  68%  { transform: translate(-6px, 2px) rotate(-3deg); }
+  82%  { transform: translate(3px, -1px) rotate(1deg); }
+  100% { transform: translate(0, 0) rotate(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ball.shaking { animation: none; }
+  .die, .die.rising { transition: opacity 200ms linear; }
+  .die.sunk { transform: translateY(-7%); filter: none; }
+  .btn { transition: none; }
+}
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- The die's faces ---------- */
+.faces { display: grid; gap: 24px; }
+.faces-head { display: grid; gap: 8px; }
+.faces-head p { color: var(--muted); max-width: 62ch; }
+.tally { font-variant-numeric: tabular-nums; }
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.col {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.col-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.col-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.col[data-tone="yes"] h3 { color: var(--yes); }
+.col[data-tone="maybe"] h3 { color: var(--maybe); }
+.col[data-tone="no"] h3 { color: var(--no); }
+.col-head .label { font-variant-numeric: tabular-nums; }
+.col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.face {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: start;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.face:last-child { border-bottom: 0; padding-bottom: 0; }
+.face-text { overflow-wrap: anywhere; }
+.face-tag { grid-column: 1; font-family: var(--font-mono); font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.face[data-kind="bonus"] .face-tag, .face[data-kind="added"] .face-tag { color: var(--accent); }
+.face-remove {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.face-remove:hover { color: var(--no); border-color: var(--no); }
+.face-remove.armed { color: var(--no); border-color: var(--no); font-weight: 700; }
+
+.add {
+  display: grid;
+  gap: 14px;
+  max-width: 640px;
+  padding-top: 8px;
+}
+.add h3 { margin: 0; font-size: 1.125rem; }
+.add-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.add-row input {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.add-row input:focus-visible { outline: none; border-color: var(--accent); }
+.tones { border: 0; margin: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.tones legend { padding: 0; margin-bottom: 8px; }
+.tone-opt { position: relative; }
+.tone-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.tone-opt span {
+  display: inline-block;
+  padding: 8px 14px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+.tone-opt input:checked + span { border-color: currentColor; }
+.tone-opt input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+.tone-opt.yes { color: var(--yes); }
+.tone-opt.maybe { color: var(--maybe); }
+.tone-opt.no { color: var(--no); }
+.status { min-height: 1.5em; font-size: 0.9375rem; color: var(--muted); }
+.status.warn { color: var(--no); }
+.note {
+  max-width: 640px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .page { padding-block: 20px 48px; gap: 40px; }
+  .stage { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .ball-wrap { order: 2; }
+  .history { order: 3; }
+  .columns { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+
+<main class="page">
+  <section class="stage" aria-label="Ask the ball">
+    <div class="intro">
+      <h1>Magic 8&nbsp;Ball</h1>
+      <p class="lede">Ask a yes-or-no question, then shake. The answer floats up in the window.</p>
+      <form class="ask" id="ask-form" autocomplete="off">
+        <label class="label" for="question">Your question</label>
+        <div class="ask-row">
+          <input id="question" name="question" type="text" maxlength="200" placeholder="Will it be sunny on Saturday?">
+          <button class="btn" id="shake-btn" type="submit">Shake</button>
+        </div>
+        <p class="hint" id="ask-hint">Tip: you can also tap the ball.</p>
+      </form>
+    </div>
+
+    <div class="ball-wrap">
+      <button class="ball" id="ball" type="button" aria-label="Shake the ball">
+        <span class="window">
+          <span class="die idle" id="die"><span class="die-text" id="die-text">Ask, then shake</span></span>
+        </span>
+      </button>
+      <p class="sr-only" id="announce" aria-live="polite"></p>
+    </div>
+
+    <div class="history" id="history">
+      <p class="label">Recent shakes · only you see these</p>
+      <ol id="history-list"></ol>
+      <p class="empty" id="history-empty">Nothing yet. Your last six questions and answers will show here.</p>
+    </div>
+  </section>
+
+  <section class="faces" aria-labelledby="faces-title">
+    <div class="faces-head">
+      <h2 id="faces-title">What’s on the die</h2>
+      <p>Inside a real 8 Ball floats a 20-sided die: 10 yes, 5 maybe, 5 no. This one carries extra faces too, including any you add below.</p>
+      <p class="label tally" id="tally">20 classic · 10 bonus · 0 added</p>
+    </div>
+
+    <div class="columns">
+      <div class="col" data-tone="yes">
+        <div class="col-head"><h3>Yes</h3><span class="label" id="count-yes">0</span></div>
+        <ul id="list-yes"></ul>
+      </div>
+      <div class="col" data-tone="maybe">
+        <div class="col-head"><h3>Maybe</h3><span class="label" id="count-maybe">0</span></div>
+        <ul id="list-maybe"></ul>
+      </div>
+      <div class="col" data-tone="no">
+        <div class="col-head"><h3>No</h3><span class="label" id="count-no">0</span></div>
+        <ul id="list-no"></ul>
+      </div>
+    </div>
+
+    <p class="note" id="db-note">Loading answers other people have added…</p>
+
+    <form class="add" id="add-form" autocomplete="off" hidden>
+      <h3>Add a face to the die</h3>
+      <div class="add-row">
+        <label class="sr-only" for="new-text">New answer</label>
+        <input id="new-text" name="new-text" type="text" maxlength="60" placeholder="Only after coffee.">
+        <button class="btn" id="add-btn" type="submit">Add answer</button>
+      </div>
+      <fieldset class="tones">
+        <legend class="label">Leans toward</legend>
+        <label class="tone-opt yes"><input type="radio" name="tone" id="tone-yes" value="yes" checked><span>Yes</span></label>
+        <label class="tone-opt maybe"><input type="radio" name="tone" id="tone-maybe" value="maybe"><span>Maybe</span></label>
+        <label class="tone-opt no"><input type="radio" name="tone" id="tone-no" value="no"><span>No</span></label>
+      </fieldset>
+      <p class="status" id="add-status" role="status">Everyone who opens this page can get your answer once you add it.</p>
+    </form>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // The 20 answers printed on the original Magic 8 Ball die.
+  var CLASSIC = [
+    ["It is certain.", "yes"], ["It is decidedly so.", "yes"], ["Without a doubt.", "yes"],
+    ["Yes definitely.", "yes"], ["You may rely on it.", "yes"], ["As I see it, yes.", "yes"],
+    ["Most likely.", "yes"], ["Outlook good.", "yes"], ["Yes.", "yes"], ["Signs point to yes.", "yes"],
+    ["Reply hazy, try again.", "maybe"], ["Ask again later.", "maybe"], ["Better not tell you now.", "maybe"],
+    ["Cannot predict now.", "maybe"], ["Concentrate and ask again.", "maybe"],
+    ["Don't count on it.", "no"], ["My reply is no.", "no"], ["My sources say no.", "no"],
+    ["Outlook not so good.", "no"], ["Very doubtful.", "no"]
+  ];
+
+  // Extra faces that aren't on the factory die.
+  var BONUS = [
+    ["Ask Ellie.", "maybe"],
+    ["Yes, but don't tell anyone.", "yes"],
+    ["Signs point to pizza.", "yes"],
+    ["Only if you do it in sweatpants.", "yes"],
+    ["The stars say yes. The moon is still thinking.", "maybe"],
+    ["The spirits are on a snack break.", "maybe"],
+    ["Ask again after a nap.", "maybe"],
+    ["You already know the answer.", "maybe"],
+    ["Absolutely not. I'm hurt you asked.", "no"],
+    ["Flip a coin. I'm tired.", "no"]
+  ];
+
+  // Said only when the same question is asked twice in a row.
+  var REPEAT_RETORTS = [
+    "Asking twice won't change my mind.",
+    "You just asked me that.",
+    "Same question, new answer? Bold."
+  ];
+
+  var TONES = ["yes", "maybe", "no"];
+  var MAX_ANSWER = 60;
+  var HISTORY_MAX = 6;
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var askForm = $("ask-form"), question = $("question"), shakeBtn = $("shake-btn"), hint = $("ask-hint");
+  var ball = $("ball"), die = $("die"), dieText = $("die-text"), announce = $("announce");
+  var historyList = $("history-list"), historyEmpty = $("history-empty");
+  var dbNote = $("db-note"), addForm = $("add-form"), newText = $("new-text"), addBtn = $("add-btn"), addStatus = $("add-status");
+
+  var custom = [];          // answers from the shared database: {id, text, tone, addedBy}
+  var history = [];         // this visit only
+  var lastAnswer = null, lastQuestion = null, busy = false;
+  var dbApi = null, userApi = null, myId = null, isOwner = false, canWrite = false, saving = false;
+  var renderToken = 0;
+
+  // ---------- Randomness ----------
+  function randomInt(n) {
+    if (window.crypto && window.crypto.getRandomValues) {
+      var a = new Uint32Array(1);
+      window.crypto.getRandomValues(a);
+      return a[0] % n;
+    }
+    return Math.floor(Math.random() * n);
+  }
+
+  function allFaces() {
+    var faces = [];
+    CLASSIC.forEach(function (f) { faces.push({ text: f[0], tone: f[1], kind: "classic" }); });
+    BONUS.forEach(function (f) { faces.push({ text: f[0], tone: f[1], kind: "bonus" }); });
+    custom.forEach(function (f) { faces.push({ text: f.text, tone: f.tone, kind: "added", id: f.id, addedBy: f.addedBy }); });
+    return faces;
+  }
+
+  function normalize(s) {
+    return String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  function pickAnswer(q) {
+    var nq = normalize(q);
+    if (lastQuestion !== null && nq === lastQuestion && randomInt(3) === 0) {
+      return REPEAT_RETORTS[randomInt(REPEAT_RETORTS.length)];
+    }
+    var pool = allFaces().map(function (f) { return f.text; });
+    if (pool.length > 1 && lastAnswer !== null) {
+      pool = pool.filter(function (t) { return t !== lastAnswer; });
+    }
+    return pool[randomInt(pool.length)];
+  }
+
+  // ---------- Fitting text into the triangle ----------
+  function fitDie() {
+    var max = Math.max(12, die.clientWidth * 0.15);
+    var size = max;
+    dieText.style.fontSize = size + "px";
+    while ((dieText.scrollHeight > dieText.clientHeight || dieText.scrollWidth > dieText.clientWidth) && size > 8) {
+      size -= 0.5;
+      dieText.style.fontSize = size + "px";
+    }
+  }
+  window.addEventListener("resize", fitDie);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitDie);
+  fitDie();
+
+  // ---------- Shaking ----------
+  function shake() {
+    if (busy) return;
+    var q = question.value.replace(/\s+/g, " ").trim();
+    if (!q) {
+      hint.textContent = "Type a question first, then shake.";
+      hint.classList.add("warn");
+      question.focus();
+      return;
+    }
+    hint.textContent = "Tip: you can also tap the ball.";
+    hint.classList.remove("warn");
+
+    busy = true;
+    shakeBtn.disabled = true;
+    var answer = pickAnswer(q);
+    announce.textContent = "Shaking…";
+
+    die.classList.remove("rising", "idle");
+    die.classList.add("sunk");
+    ball.classList.remove("shaking");
+    void ball.offsetWidth; // restart the animation
+    ball.classList.add("shaking");
+
+    setTimeout(function () {
+      ball.classList.remove("shaking");
+      dieText.textContent = answer;
+      fitDie();
+      die.classList.add("rising");
+      die.classList.remove("sunk");
+      announce.textContent = answer;
+      addHistory(q, answer);
+      if (REPEAT_RETORTS.indexOf(answer) === -1) lastAnswer = answer;
+      lastQuestion = normalize(q);
+      setTimeout(function () {
+        busy = false;
+        shakeBtn.disabled = false;
+      }, reduceMotion ? 200 : 600);
+    }, reduceMotion ? 250 : 760);
+  }
+
+  askForm.addEventListener("submit", function (e) { e.preventDefault(); shake(); });
+  ball.addEventListener("click", shake);
+
+  function addHistory(q, a) {
+    history.unshift({ q: q, a: a });
+    if (history.length > HISTORY_MAX) history.length = HISTORY_MAX;
+    historyList.textContent = "";
+    history.forEach(function (h) {
+      var li = document.createElement("li");
+      var qEl = document.createElement("span");
+      qEl.className = "q";
+      qEl.textContent = h.q;
+      var aEl = document.createElement("span");
+      aEl.className = "a";
+      aEl.textContent = h.a;
+      li.appendChild(qEl);
+      li.appendChild(aEl);
+      historyList.appendChild(li);
+    });
+    historyEmpty.hidden = history.length > 0;
+  }
+
+  // ---------- Rendering the die's faces ----------
+  function canRemove(face) {
+    if (face.kind !== "added" || !dbApi || !canWrite) return false;
+    return isOwner || (myId !== null && face.addedBy === myId);
+  }
+
+  function renderFaces() {
+    var token = ++renderToken;
+    var faces = allFaces();
+    var counts = { yes: 0, maybe: 0, no: 0 };
+    var lists = { yes: $("list-yes"), maybe: $("list-maybe"), no: $("list-no") };
+    TONES.forEach(function (t) { lists[t].textContent = ""; });
+    var nameSpans = [];
+
+    faces.forEach(function (f) {
+      counts[f.tone]++;
+      var li = document.createElement("li");
+      li.className = "face";
+      li.dataset.kind = f.kind;
+      var text = document.createElement("span");
+      text.className = "face-text";
+      text.textContent = f.text;
+      li.appendChild(text);
+
+      var tag = document.createElement("span");
+      tag.className = "face-tag";
+      if (f.kind === "classic") {
+        tag.textContent = "Classic";
+      } else if (f.kind === "bonus") {
+        tag.textContent = "Bonus";
+      } else {
+        tag.textContent = "Added by ";
+        var who = document.createElement("span");
+        who.textContent = "someone";
+        if (f.addedBy) {
+          who.dataset.uid = f.addedBy;
+          nameSpans.push(who);
+        }
+        tag.appendChild(who);
+      }
+      li.appendChild(tag);
+
+      if (canRemove(f)) {
+        var rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "face-remove";
+        rm.textContent = "Remove";
+        rm.setAttribute("aria-label", "Remove “" + f.text + "”");
+        rm.addEventListener("click", function () { onRemove(rm, f); });
+        li.appendChild(rm);
+      }
+      lists[f.tone].appendChild(li);
+    });
+
+    TONES.forEach(function (t) { $("count-" + t).textContent = counts[t] + (counts[t] === 1 ? " face" : " faces"); });
+    $("tally").textContent = CLASSIC.length + " classic · " + BONUS.length + " bonus · " + custom.length + " added · " + faces.length + " total";
+
+    if (userApi && nameSpans.length) {
+      var ids = nameSpans.map(function (s) { return s.dataset.uid; });
+      userApi.profiles(ids).then(function (ps) {
+        if (token !== renderToken) return;
+        nameSpans.forEach(function (s) {
+          var p = ps[s.dataset.uid];
+          if (!p) return;
+          s.textContent = p.isMe ? "you" : (p.name || "someone");
+        });
+      });
+    }
+  }
+
+  function onRemove(btn, face) {
+    if (!btn.classList.contains("armed")) {
+      btn.classList.add("armed");
+      btn.textContent = "Confirm";
+      setTimeout(function () {
+        if (btn.isConnected) { btn.classList.remove("armed"); btn.textContent = "Remove"; }
+      }, 4000);
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = "Removing…";
+    dbApi.doc("answers/" + face.id).delete().catch(function (err) {
+      btn.disabled = false;
+      btn.classList.remove("armed");
+      btn.textContent = "Remove";
+      addStatus.classList.add("warn");
+      addStatus.textContent = (err && err.code === "invalid_argument")
+        ? "You don't have permission to remove that answer."
+        : "Couldn't remove that answer. Check your connection and try again.";
+    });
+  }
+
+  renderFaces();
+
+  // ---------- Shared answers (claude.ai database) ----------
+  function cleanDoc(snap) {
+    if (!snap.exists) return null;
+    var d = snap.data() || {};
+    if (typeof d.text !== "string") return null;
+    var text = d.text.replace(/\s+/g, " ").trim().slice(0, MAX_ANSWER);
+    if (!text) return null;
+    return {
+      id: snap.id,
+      text: text,
+      tone: TONES.indexOf(d.tone) !== -1 ? d.tone : "maybe",
+      addedBy: typeof d.addedBy === "string" ? d.addedBy : null
+    };
+  }
+
+  function setDbState(state) {
+    addForm.hidden = state !== "ok";
+    dbNote.hidden = state === "ok";
+    if (state === "offline") {
+      dbNote.textContent = "Shared answers aren't available here. Open this page from its claude.ai link while signed in to see and add them. The ball still works with the classic and bonus answers.";
+    } else if (state === "readonly") {
+      dbNote.textContent = "You can shake the ball and see every answer. Adding answers needs edit access to this page; ask whoever shared it with you.";
+    } else if (state === "error") {
+      dbNote.textContent = "Lost the connection to shared answers. Reload the page to reconnect.";
+    }
+  }
+
+  async function connect() {
+    var c = window.claude;
+    if (!c || typeof c.use !== "function") { setDbState("offline"); return; }
+    var results = await Promise.all([c.use("db"), c.use("user")]);
+    var db = results[0];
+    userApi = results[1];
+    if (userApi) {
+      myId = await userApi.id();
+      isOwner = await userApi.isOwner();
+    }
+    if (!db) { setDbState("offline"); return; }
+    dbApi = db;
+    var can = userApi ? await userApi.can("data.write") : null;
+    canWrite = can !== false;
+    setDbState(canWrite ? "ok" : "readonly");
+
+    db.collection("answers").orderBy("createdAt", "asc").limit(500).onSnapshot(function (snap) {
+      custom = snap.docs.map(cleanDoc).filter(Boolean);
+      renderFaces();
+    }, function () {
+      setDbState("error");
+    });
+  }
+
+  connect().catch(function () { setDbState("offline"); });
+
+  addForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (!dbApi || saving) return;
+    addStatus.classList.remove("warn");
+    var text = newText.value.replace(/\s+/g, " ").trim();
+    var toneInput = addForm.querySelector('input[name="tone"]:checked');
+    var tone = toneInput ? toneInput.value : "maybe";
+
+    if (!/[a-z0-9]/i.test(text)) {
+      addStatus.classList.add("warn");
+      addStatus.textContent = "Type an answer first, using at least one letter or number.";
+      newText.focus();
+      return;
+    }
+    if (text.length > MAX_ANSWER) {
+      addStatus.classList.add("warn");
+      addStatus.textContent = "Keep it to " + MAX_ANSWER + " characters so it fits on the die.";
+      return;
+    }
+    var n = normalize(text);
+    var dupe = allFaces().some(function (f) { return normalize(f.text) === n; });
+    if (dupe) {
+      addStatus.classList.add("warn");
+      addStatus.textContent = "That answer is already on the die.";
+      return;
+    }
+
+    saving = true;
+    addBtn.disabled = true;
+    addStatus.textContent = "Adding…";
+    try {
+      await dbApi.collection("answers").add({ text: text, tone: tone, addedBy: myId, createdAt: Date.now() });
+      newText.value = "";
+      addStatus.textContent = "Added “" + text + "”. It can come up on the next shake.";
+    } catch (err) {
+      var code = err && err.code;
+      addStatus.classList.add("warn");
+      if (code === "invalid_argument") {
+        canWrite = false;
+        setDbState("readonly");
+        renderFaces();
+      } else if (code === "quota_exceeded") {
+        addStatus.textContent = "The die is full. Remove an answer you added, then try again.";
+      } else if (code === "resource_exhausted") {
+        addStatus.textContent = "Too many changes at once. Wait a few seconds, then try again.";
+      } else {
+        addStatus.textContent = "Couldn't save that answer. Check your connection and try again.";
+      }
+    } finally {
+      saving = false;
+      addBtn.disabled = false;
+    }
+  });
+})();
+</script>
