@@ -8,6 +8,7 @@ A Magic 8 Ball webpage. Type a yes-or-no question, shake the ball, and an answer
 - **Bonus answers**: 10 extra faces that aren't on the real die, such as "Signs point to pizza." and "Ask Ellie."
 - **Shared custom answers**: anyone with edit access can add their own answers. Each one is saved to a shared database, so everyone who opens the page can get it on a shake. You can remove answers you added. The page owner can remove any added answer.
 - **Random picks**: each shake draws from every face (classic, bonus and added) using the browser's cryptographic random number generator. It never gives the same answer twice in a row. If you ask the exact same question twice in a row, the ball sometimes calls you out on it.
+- **Secret rule**: a question that ends in two question marks (like `Should I??`) always gets "Ask Ellie."
 - **Recent shakes**: your last six questions and answers for the current visit. Only you see them, and they aren't saved.
 
 ## How it's hosted

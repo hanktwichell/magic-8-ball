@@ -513,6 +513,8 @@ button, input { font: inherit; color: inherit; }
   }
 
   function pickAnswer(q) {
+    // A question ending in two (or more) question marks always gets this answer.
+    if (/\?\?$/.test(q)) return "Ask Ellie.";
     var nq = normalize(q);
     if (lastQuestion !== null && nq === lastQuestion && randomInt(3) === 0) {
       return REPEAT_RETORTS[randomInt(REPEAT_RETORTS.length)];
